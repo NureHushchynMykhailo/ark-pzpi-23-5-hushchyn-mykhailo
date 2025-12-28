@@ -1,0 +1,2006 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+
+КАФЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+Звіт
+з лабораторної роботи № 2 з дисципліни
+Аналіз та рефакторинг коду
+
+
+
+
+
+Виконав:                                                                Перевірив:
+ст. гр. ПЗПІ-23-5                				ст. викладач кафедри ПІ
+Гущин Михайло Валерійович 			Сокорчук Ігор Петрович
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Харків 2025
+
+
+ІСТОРІЯ ЗМІН
+      №      ДатаВерсія звіту      Опис змін та виправлень      1      25.12.2025      0.1      Початкова версія
+
+      
+
+
+
+
+1 ЗАВДАННЯ
+
+1. Розробити будову програмної системи.
+2. Створити UML діаграму прецедентів для серверної частини системи.
+3. Створити ER діаграму даних.
+4. Розробити базу даних (БД) програмної системи.
+5. Створити діаграму структури БД.
+6. Розробити функції роботи з БД.
+7. Розробити API (REST) для взаємодії серверної частини з клієнтами.
+8. Створити специфікацію розробленого API.
+9. Створити програмну реалізацію розробленого API та функцій роботи з БД.
+10. Перевірити роботу створеного програмного коду серверної частини системи.
+11. Завантажити або оновити (при потребі) створений програмний код у GitHub репозиторій для лабораторних робіт у гілку репозиторію main.
+12. Створити відеозапис тривалістю 7-9 хвилин з демонстрацією перевірки (тестування) описаної у розділі 3.1 Vision & Scope функціональності серверної частини.
+13. Завантажити створений відеозапис у свій канал для облікового запису студента в домені nure.ua на YouTube. При завантаженні відеозапису обовʼязково встановити у налаштуваннях для цього відео українську мову як мову відео та мову субтитрів до відео.
+14. Створити хронологічний опис (хвилина:секунда) демонстрації та додати цей опис до опису відео на YouTube.
+15. Створити звіт до лабораторної роботи.
+16. Вказати у звіті посилання на створений відеозапис на YouTube
+17. Експортувати створений звіт у формат PDF та завантажити його на платформу dl.nure.ua
+18. Експортувати увесь створений звіт у текстовий файл з кодуванням UTF-8 та записати цей файл у GitHub репозиторій для лабораторних робіт.
+
+2 ОПИС ВИКОНАНОЇ РОБОТИ
+
+	Програмна система реалізована як серверна частина у вигляді REST API-додатку для моніторингу та управління водними станціями. Для розробки використано платформу Node.js та фреймворк Express.js, а як систему управління базами даних обрано PostgreSQL. Взаємодія з базою здійснюється через сучасний Drizzle ORM, що забезпечує безпечне та ефективне виконання запитів. Аутентифікація користувачів реалізована за допомогою JWT-токенів, які передаються в заголовках HTTP-запитів, забезпечуючи захист приватних маршрутів і контроль доступу відповідно до ролей користувачів.
+     Система складається з кількох основних модулів. Перший модуль відповідає за управління користувачами та їхніми правами доступу, дозволяючи адміністраторам створювати облікові записи, призначати ролі та контролювати доступ до конкретних станцій водопостачання. Другий модуль відповідає за керування станціями водопостачання, включаючи реєстрацію нових станцій, збереження їх геолокації та статусу, а також моніторинг останнього часу зв’язку з пристроями.
+     Для збору даних використовуються IoT-пристрої, включно з сенсорами рівня води, pH, ORP, турбідності, тиску, а також аератори, насоси, клапани і дозатори хімікатів. Телеметрія від сенсорів надходить на сервер у режимі реального часу, зберігається в базі даних і використовується для автоматизованого управління процесами. Автоматизація дозволяє регулювати роботу насосів, клапанів і дозаторів відповідно до вимірюваних показників, підтримуючи оптимальний стан водної системи без участі оператора.
+     ER-діаграма (рис. 1) побудована з урахуванням нормалізації до третьої нормальної форми. Основними сутностями є користувач, станція водопостачання, параметри (типи показників), сенсори, контролери, телеметрія та журнали контролерів. Один користувач може обслуговувати кілька станцій, кожна станція містить багато сенсорів і контролерів, а кожен сенсор або контролер генерує часовий ряд даних (one-to-many). Взаємозв’язки між таблицями реалізовані через зовнішні ключі з каскадним видаленням або обмеженням цілісності, що забезпечує правильність та узгодженість даних.
+     Фізична модель бази даних (рис.2) відображає точні назви стовпців, їх типи (включаючи часові мітки та числові значення з плаваючою комою), обмеження первинних та зовнішніх ключів, індекси для оптимізації вибірки телеметрії та значення за замовчуванням для статусів пристроїв і контролерів. Завдяки Drizzle ORM усі операції CRUD реалізовані у відповідних репозиторіях, а механізм relations дозволяє отримувати вкладені дані одним запитом, наприклад, станцію разом із її сенсорами і контролерами. Підключення до бази здійснюється через пул з'єднань із використанням змінних оточення для безпечного зберігання облікових даних.
+     Ініціалізація підключення (рядок 1-16).
+1. import { drizzle } from 'drizzle-orm/node-postgres';
+2. import { Pool } from 'pg';
+3. import * as schema from '../db/schema';
+4. import dotenv from 'dotenv';
+5. 
+6. dotenv.config();
+7. 
+8. if (!process.env.DATABASE_URL) {
+9.   throw new Error('DATABASE_URL is missing in env');
+10. }
+11. 
+12. const pool = new Pool({
+13.   connectionString: process.env.DATABASE_URL,
+14. });
+15. 
+16. export const db = drizzle(pool, { schema });
+
+     Приклад створення таблиць в Drizzle ORM (рядки 1-21):
+
+1. export const sensors = pgTable('sensors', {
+2.   id: uuid('id').defaultRandom().primaryKey(),
+3.   stationId: uuid('station_id').references(() => stations.id, { onDelete: 'cascade' }).notNull(),
+4.   parameterId: uuid('parameter_id').references(() => parameters.id).notNull(),
+5.   model: varchar('model', { length: 100 }),
+6.   serialNumber: varchar('serial_number', { length: 100 }),
+7.   type: sensorTypeEnum('type').notNull(), 
+8.   isActive: boolean('is_active').default(true),
+9. });
+10. export const stationThresholds = pgTable('station_thresholds', {
+11.   id: uuid('id').defaultRandom().primaryKey(),
+12.   stationId: uuid('station_id').references(() => stations.id, { onDelete: 'cascade' }).notNull(),
+13.   parameterId: uuid('parameter_id').references(() => parameters.id, { onDelete: 'cascade' }).notNull(),
+14.   
+15.   minWarning: doublePrecision('min_warning'),
+16.   maxWarning: doublePrecision('max_warning'),
+17.   minCritical: doublePrecision('min_critical'),
+18.   maxCritical: doublePrecision('max_critical'),
+19. }, (t) => ({
+20.   unq: unique().on(t.stationId, t.parameterId),
+21. }));
+
+     
+     У системі водної станції передбачено декілька основних ролей користувачів, кожна з яких має свої права та обов’язки, що вказані на Use-case діаграмі на рисунку 3. Адміністратор (Admin) має повний доступ до системи, може створювати, редагувати та видаляти користувачів, призначати ролі, керувати всіма станціями водопостачання, контролювати їхній стан, а також отримує доступ до глобальних налаштувань системи, параметрів моніторингу та журналів активності. Менеджер (Manager) відповідає за управління певними станціями, призначеними йому в системі, може переглядати дані телеметрії, налаштовувати порогові значення параметрів станцій, контролювати роботу насосів і клапанів та отримувати сповіщення про критичні або попереджувальні події. Технік (Technician) займається обслуговуванням пристроїв на станції, підключає нові сенсори та контролери, проводить калібрування, виконує ручне керування насосами, клапанами та дозаторами, а також реагує на сигнали тривог. Спостерігач (Viewer) має обмежений доступ і може лише переглядати стан станцій та показники сенсорів у реальному часі без можливості змінювати налаштування або взаємодіяти з контролерами.
+     Розроблене API реалізовано у вигляді чистої, модульної архітектури з чітким поділом відповідальностей за принципом Controller-Service-Repository. Контролери обробляють HTTP-запити, репозиторії відповідають за безпосередню взаємодію з базою даних через Drizzle ORM, а сервіси містять основну бізнес-логіку. Код написаний на TypeScript/Node.js, що забезпечує високу продуктивність та обробку подій у реальному часі.
+     Специфікація API (дод. В) реалізована безпосередньо в коді за допомогою Swagger-анотацій, що дозволяє автоматично генерувати інтерактивну документацію у середовищі Swagger UI (рис. 4). Кожен REST-ендпоінт описано детально: наведено приклади HTTP-запитів та відповідей, структури передаваних даних, можливі коди помилок, а також додаткові пояснювальні коментарі для зручності розробників та користувачів API.
+
+
+
+
+4 ВИСНОВКИ
+     
+     Розроблена програмна система забезпечує комплексний моніторинг та управління водними станціями завдяки реалізації серверної частини у вигляді REST API-додатку на базі Node.js, Express.js та TypeScript. Використання PostgreSQL у поєднанні з Drizzle ORM дозволяє ефективно та безпечно працювати з базою даних, реалізовуючи всі операції CRUD і підтримуючи складні запити з вкладеними зв’язками між сутностями.
+     Модульна архітектура за принципом Controller-Service-Repository гарантує чіткий поділ відповідальностей, що підвищує зрозумілість та підтримуваність коду. Автоматизація процесів управління станціями, зокрема робота насосів, клапанів та дозаторів хімікатів на основі телеметрії сенсорів, дозволяє підтримувати оптимальний стан водної системи без участі оператора.
+     Система реалізує низку ролей користувачів з різними рівнями доступу, що забезпечує безпечну роботу, контроль за станом обладнання та ефективне управління процесами. Інтерактивна документація API, згенерована за допомогою Swagger-анотацій, спрощує роботу розробників і користувачів, надаючи повний опис ендпоінтів, приклади запитів та відповідей, а також можливі коди помилок.
+
+
+
+
+
+
+ДОДАТОК А
+
+Відеозапис
+
+Відеозапис презентації результатів лабораторної роботи: https://youtu.be/NzlMkXCpq_0
+
+Хронологічний опис відеозапису:
+00:00 – представлення, тема та завдання лабораторної роботи
+00:19 – ER-діаграма, діаграма структури бази даних, UML діаграма
+01:43 – підключення бази даних
+03:10 – демонстрація роботи API. Реєстрація юзера
+03:31 – демонстрація роботи API. Авторизація 
+03:50 – демонстрація роботи API. Створення нової станції
+04:25 – демонстрація роботи API. Перевірка наявних сенсорів на станції, параметрів, видалення станції
+
+
+
+
+
+ДОДАТОК Б
+
+Графічні матеріали
+
+
+Рисунок 1 — ER-діаграма
+
+
+Рисунок 2 — Діаграма структури бази даних
+
+Рисунок 3 — UML діаграма прецедентів
+
+
+Рисунок 4 — Cпецифікація розробленого API
+
+
+
+ДОДАТОК В
+
+Специфікація API
+
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Water Monitor System API",
+    "version": "1.0.0",
+    "description": "API for managing IoT Stations, Users, and Telemetry"
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/actuators/station/{stationId}": {
+      "get": {
+        "summary": "Get all actuators on a station",
+        "tags": [
+          "Actuators"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of devices"
+          }
+        }
+      }
+    },
+    "/actuators": {
+      "post": {
+        "summary": "Create new actuator (Admin/Manager)",
+        "tags": [
+          "Actuators"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "stationId",
+                  "name",
+                  "type"
+                ],
+                "properties": {
+                  "stationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "aerator",
+                      "filter",
+                      "reagent_dispenser",
+                      "pump"
+                    ]
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/actuators/{id}": {
+      "patch": {
+        "summary": "Update actuator (e.g. switch ON/OFF)",
+        "tags": [
+          "Actuators"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete actuator (Admin)",
+        "tags": [
+          "Actuators"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/actuators/log": {
+      "post": {
+        "summary": "Register device state (Duty Cycle)",
+        "tags": [
+          "Actuators"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "controllerId",
+                  "activationPercentage"
+                ],
+                "properties": {
+                  "controllerId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "activationPercentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "statusMessage": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Logged"
+          }
+        }
+      }
+    },
+    "/actuators/{id}/history": {
+      "get": {
+        "summary": "Get operation history for actuator",
+        "tags": [
+          "Actuators"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History logs"
+          }
+        }
+      }
+    },
+    "/actuators/station/{stationId}/latest": {
+      "get": {
+        "summary": "Get LIVE state of all active actuators on a station",
+        "description": "Returns a snapshot of what each device is doing right now (based on the last log entry).\n",
+        "tags": [
+          "Actuators"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of device states",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "example": "pump"
+                      },
+                      "lastUpdate": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "activationPercentage": {
+                        "type": "string",
+                        "example": "100.00"
+                      },
+                      "statusMessage": {
+                        "type": "string",
+                        "example": "Pumping"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/active": {
+      "get": {
+        "summary": "Get all ACTIVE (unresolved) alerts",
+        "tags": [
+          "Alerts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of active alerts"
+          }
+        }
+      }
+    },
+    "/alerts/station/{stationId}": {
+      "get": {
+        "summary": "Get alert history for a station",
+        "tags": [
+          "Alerts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of alerts"
+          }
+        }
+      }
+    },
+    "/alerts": {
+      "post": {
+        "summary": "Manually create an alert (System/Admin)",
+        "tags": [
+          "Alerts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "stationId",
+                  "type",
+                  "targetRole",
+                  "message"
+                ],
+                "properties": {
+                  "stationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "warning",
+                      "critical"
+                    ]
+                  },
+                  "targetRole": {
+                    "type": "string",
+                    "enum": [
+                      "technician",
+                      "manager",
+                      "admin"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Alert created"
+          }
+        }
+      }
+    },
+    "/alerts/{id}/resolve": {
+      "patch": {
+        "summary": "Mark alert as RESOLVED",
+        "tags": [
+          "Alerts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alert resolved"
+          }
+        }
+      }
+    },
+    "/alerts/{id}": {
+      "delete": {
+        "summary": "Delete alert record (Admin only)",
+        "tags": [
+          "Alerts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Register a new user",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6
+                  },
+                  "fullName": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "manager",
+                      "technician",
+                      "analyst",
+                      "viewer"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully"
+          },
+          "400": {
+            "description": "Email already in use or invalid data"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login to obtain a Bearer token",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful, returns JWT token"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/backups/full": {
+      "get": {
+        "summary": "Download FULL database backup (.sql)",
+        "description": "Exports schema and all data from all tables.",
+        "tags": [
+          "Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SQL file stream",
+            "content": {
+              "application/sql": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          }
+        }
+      }
+    },
+    "/backups/telemetry": {
+      "get": {
+        "summary": "Download Telemetry & Logs backup only (.sql)",
+        "description": "Exports only 'telemetry' and 'controller_logs' tables. Useful for archiving heavy data.",
+        "tags": [
+          "Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SQL file stream",
+            "content": {
+              "application/sql": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          }
+        }
+      }
+    },
+    "/backups/restore": {
+      "post": {
+        "summary": "Restore database from .sql file",
+        "description": "Accepts both full backups and partial telemetry backups. WARNING! This process drops existing tables before recreation.",
+        "tags": [
+          "Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The .sql backup file"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restore successful"
+          },
+          "400": {
+            "description": "File missing"
+          },
+          "500": {
+            "description": "Restore failed"
+          }
+        }
+      }
+    },
+    "/parameters": {
+      "get": {
+        "summary": "Get all parameters",
+        "tags": [
+          "Parameters"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of parameters"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create parameter (Admin only)",
+        "tags": [
+          "Parameters"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "name",
+                  "unit"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "example": "ph_val"
+                  },
+                  "name": {
+                    "type": "string",
+                    "example": "Acidity (pH)"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "example": "pH"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/parameters/{id}": {
+      "delete": {
+        "summary": "Delete parameter (Admin only)",
+        "tags": [
+          "Parameters"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/sensors/station/{stationId}": {
+      "get": {
+        "summary": "Get sensors by station",
+        "tags": [
+          "Sensors"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of sensors"
+          }
+        }
+      }
+    },
+    "/sensors": {
+      "post": {
+        "summary": "Add sensor (Admin/Manager)",
+        "tags": [
+          "Sensors"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "stationId",
+                  "parameterId"
+                ],
+                "properties": {
+                  "stationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "parameterId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "serialNumber": {
+                    "type": "string"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/sensors/{id}": {
+      "patch": {
+        "summary": "Update sensor",
+        "tags": [
+          "Sensors"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete sensor (Admin only)",
+        "tags": [
+          "Sensors"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/stations": {
+      "post": {
+        "summary": "Create a new station",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the station"
+                  },
+                  "latitude": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "offline",
+                      "maintenance"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Station created successfully"
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "403": {
+            "description": "Forbidden - Requires Admin or Manager role"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all stations (Admin/Manager only)",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all stations"
+          },
+          "403": {
+            "description": "Forbidden - Requires Admin or Manager role"
+          }
+        }
+      }
+    },
+    "/stations/my": {
+      "get": {
+        "summary": "Get stations assigned to the current user",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of assigned stations"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/stations/assign": {
+      "post": {
+        "summary": "Assign a user to a station",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId",
+                  "stationId"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "stationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User assigned successfully"
+          },
+          "403": {
+            "description": "Forbidden - Requires Admin or Manager role"
+          },
+          "409": {
+            "description": "User already assigned to this station"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Unassign a user from a station",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId",
+                  "stationId"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "stationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User unassigned successfully"
+          },
+          "403": {
+            "description": "Forbidden - Requires Admin or Manager role"
+          },
+          "404": {
+            "description": "Assignment not found"
+          }
+        }
+      }
+    },
+    "/stations/{id}": {
+      "patch": {
+        "summary": "Update station details",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The station ID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "offline",
+                      "maintenance"
+                    ]
+                  },
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Station updated successfully"
+          },
+          "403": {
+            "description": "Forbidden - Requires Admin or Manager role"
+          },
+          "404": {
+            "description": "Station not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a station",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The station ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Station deleted successfully"
+          },
+          "403": {
+            "description": "Forbidden - Requires Admin role"
+          },
+          "404": {
+            "description": "Station not found"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get station details (Access Checked)",
+        "description": "Returns station details if the user is Admin/Manager or if the user is assigned to this station.\n",
+        "tags": [
+          "Stations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The station ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Station details"
+          },
+          "403": {
+            "description": "Forbidden - You are not assigned to this station"
+          },
+          "404": {
+            "description": "Station not found"
+          }
+        }
+      }
+    },
+    "/statistics/station/{stationId}/sensors": {
+      "get": {
+        "summary": "Get aggregated sensor data (Min/Max/Avg)",
+        "tags": [
+          "Statistics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Start date (default 24h ago)"
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "End date (default now)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statistical data"
+          }
+        }
+      }
+    },
+    "/statistics/station/{stationId}/alerts": {
+      "get": {
+        "summary": "Get alert counts by type and status",
+        "tags": [
+          "Statistics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alert summary"
+          }
+        }
+      }
+    },
+    "/statistics/station/{stationId}/actuators": {
+      "get": {
+        "summary": "Get actuator efficiency (Average Load %)",
+        "tags": [
+          "Statistics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Actuator load statistics"
+          }
+        }
+      }
+    },
+    "/telemetry": {
+      "post": {
+        "summary": "Send telemetry data",
+        "tags": [
+          "Telemetry"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "sensorId",
+                  "value"
+                ],
+                "properties": {
+                  "sensorId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "value": {
+                    "type": "number"
+                  },
+                  "measuredAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Optional ISO date"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Data recorded"
+          }
+        }
+      }
+    },
+    "/telemetry/sensor/{sensorId}": {
+      "get": {
+        "summary": "Get latest telemetry for sensor (limit 100)",
+        "tags": [
+          "Telemetry"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sensorId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of data points"
+          }
+        }
+      }
+    },
+    "/telemetry/station/{stationId}/latest": {
+      "get": {
+        "summary": "Get LATEST reading for EACH sensor on a station",
+        "description": "Returns a snapshot of the station's current status (Dashboard view). Includes sensor type, parameter name, and units.\n",
+        "tags": [
+          "Telemetry"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of latest sensor readings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sensorId": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "example": "ph_meter"
+                      },
+                      "parameterName": {
+                        "type": "string",
+                        "example": "Acidity"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "example": "pH"
+                      },
+                      "value": {
+                        "type": "number",
+                        "example": 7.2
+                      },
+                      "measuredAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/thresholds/station/{stationId}": {
+      "get": {
+        "summary": "Get thresholds for a station",
+        "tags": [
+          "Thresholds"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of thresholds"
+          }
+        }
+      }
+    },
+    "/thresholds": {
+      "post": {
+        "summary": "Set threshold (Admin/Manager)",
+        "tags": [
+          "Thresholds"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "stationId",
+                  "parameterId"
+                ],
+                "properties": {
+                  "stationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "parameterId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "minWarning": {
+                    "type": "number"
+                  },
+                  "maxWarning": {
+                    "type": "number"
+                  },
+                  "minCritical": {
+                    "type": "number"
+                  },
+                  "maxCritical": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/thresholds/{id}": {
+      "patch": {
+        "summary": "Update threshold (Admin/Manager)",
+        "tags": [
+          "Thresholds"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "minWarning": {
+                    "type": "number"
+                  },
+                  "maxWarning": {
+                    "type": "number"
+                  },
+                  "minCritical": {
+                    "type": "number"
+                  },
+                  "maxCritical": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete threshold",
+        "tags": [
+          "Thresholds"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/users/profile": {
+      "get": {
+        "summary": "Get current user profile",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile data"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "summary": "Get all users (Admin only)",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all users"
+          },
+          "403": {
+            "description": "Forbidden - Admin access required"
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "delete": {
+        "summary": "Delete a user by ID (Admin only)",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The user ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully"
+          },
+          "403": {
+            "description": "Forbidden - Admin access required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Actuators",
+      "description": "Management of Controllers (Pumps, Fans) and their logs"
+    },
+    {
+      "name": "Alerts",
+      "description": "System warnings and critical events management"
+    },
+    {
+      "name": "Auth",
+      "description": "User Management and Authentication"
+    },
+    {
+      "name": "Backups",
+      "description": "Database Backup & Restore management (Admin Only)"
+    },
+    {
+      "name": "Parameters",
+      "description": "Dictionary of measured parameters (pH, Temperature, etc.)"
+    },
+    {
+      "name": "Sensors",
+      "description": "Physical sensors hardware"
+    },
+    {
+      "name": "Stations",
+      "description": "IoT Station Management (CRUD & Assignments)"
+    },
+    {
+      "name": "Statistics",
+      "description": "Analytical reports and aggregations"
+    },
+    {
+      "name": "Telemetry",
+      "description": "Time-series data from sensors"
+    },
+    {
+      "name": "Thresholds",
+      "description": "Alert limits for stations"
+    },
+    {
+      "name": "Users",
+      "description": "User Management and Authentication"
+    }
+  ]
+}
+2
+
+
