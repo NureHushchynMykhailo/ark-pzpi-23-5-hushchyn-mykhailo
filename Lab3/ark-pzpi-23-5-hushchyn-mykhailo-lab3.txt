@@ -1,0 +1,806 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+
+КАФЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+Звіт
+з лабораторної роботи № 3 з дисципліни
+Аналіз та рефакторинг коду
+
+
+
+
+
+Виконав:                                                                Перевірив:
+ст. гр. ПЗПІ-23-5                				ст. викладач кафедри ПІ
+Гущин Михайло Валерійович 			Сокорчук Ігор Петрович
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Харків 2025
+
+
+1 ІСТОРІЯ ЗМІН
+      №      ДатаВерсія звіту      Опис змін та виправлень      1      25.12.2025      0.1      Початкова версія
+
+      
+
+
+
+
+2 ЗАВДАННЯ
+
+1. Розробити бізнес логіку серверної частини програмної системи.
+2. Розробити функції адміністрування серверної частини програмної системи.
+3. Створити програмну реалізацію бізнес логіки та функцій адміністрування серверної частини.
+4. Перевірити роботу серверної частини системи.
+5. Завантажити або оновити (при потребі) створений програмний код у GitHub репозиторій для лабораторних робіт у гілку репозиторію main.
+6. Створити відеозапис демонстрації описаної у розділі 3.1 Vision & Scope функціональності серверної частини та завантажити цей відеозапис у свій канал на YouTube для облікового запису в домені @nure.ua.  При завантаженні відеозапису потрібно обовʼязково встановити у налаштуваннях для цього відео українську мову як мову відео та мову субтитрів до відео.
+7. Створити хронологічний опис (хвилина:секунда) демонстрації та додати цей опис до опису відео.
+8. Створити звіт до лабораторної роботи.
+9. Експортувати створений звіт у формат PDF та завантажити його на платформу dl.nure.ua.
+10. Експортувати увесь створений звіт у простий текстовий файл з кодуванням UTF-8 та записати цей файл у GitHub репозиторій для лабораторних робіт з вказаним у цих методичних вказівках іменем файла та директорії.
+
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+
+	
+     3.1 Адміністрування серверної частини
+     Було реалізовано модуль адміністрування, який дозволяє розділити права доступу користувачів та їх можливі дії в системі. Роль admin є найвищою та надає повний адміністративний і технічний контроль над системою. Адміністратор має право виконувати критичні операції, зокрема переглядати всіх користувачів, видаляти користувачів і станції, керувати глобальними параметрами системи, створювати та відновлювати резервні копії бази даних, а також змінювати ролі інших користувачів. Фактично, admin має доступ до всіх роутів без винятків (див. дод. Б, рис. 2).
+     Роль manager призначена для операційного керування об’єктами моніторингу. Менеджер може створювати та редагувати станції, призначати користувачів на станції, налаштовувати порогові значення тривог, а також керувати контролерами (такими як насоси чи вентилі). Окрім цього, менеджер має доступ до статистики та звітів. Водночас менеджер не може виконувати глобальні адміністративні дії, такі як видалення користувачів, керування системними параметрами чи робота з бекапами. (див. дод. Б, рис. 3).
+     Роль technician орієнтована на фізичне обслуговування станцій та монтаж обладнання. Основною унікальною можливістю техніка є створення нових сенсорів. Це дозволяє техніку безпосередньо на об’єкті встановити датчик і зареєструвати його в системі. Технік також має доступ до перегляду станцій і їх конфігурацій, щоб перевіряти коректність підключення обладнання. При цьому технік не може створювати або редагувати самі станції, не має доступу до налаштування порогів тривог, керування контролерами чи аналітичних звітів. Його роль чітко обмежена монтажем і технічною підтримкою. (див. дод. Б, рис. 4).
+     
+     Роль analyst призначена для користувачів, які займаються аналізом даних і моніторингом ефективності системи. Аналітик має доступ виключно до спеціалізованих роутів статистики, де може переглядати агреговані дані по сенсорах, тривогах і навантаженню актуаторів. Усі дії аналітика є read-only: він не може змінювати жодних налаштувань, конфігурацій чи сутностей у системі. Доступ до інших адміністративних або операційних роутів для нього закритий. (див. дод. Б, рис. 5).
+     Роль viewer є базовою і відповідає звичайному користувачу або власнику станції. Такий користувач має доступ до перегляду даних на дашборді по тих станціях, до яких він призначений, а також може отримувати історію вимірювань через роутери телеметрії. Viewer не має прав на створення, редагування чи видалення будь-яких сутностей і не бачить розширеної статистики.
+Для первірки ролі використовується код (рядок 1-26)
+1. export const authorizeRole = (allowedRoles: string[]) => {
+2.   return (req: AuthRequest, res: Response, next: NextFunction) => {
+3.     if (!req.user || !allowedRoles.includes(req.user.role)) {
+4.       return res.status(403).json({ error: 'Forbidden: Insufficient Permissions' });
+5.     }
+6.     next();
+7.   };
+8. };
+9. export const checkStationAccess = async (req: AuthRequest, res: Response, next: NextFunction) => {
+10.   const userId = req.user?.id;
+11.   const role = req.user?.role;
+12.   
+13.   const stationId = req.params.id || req.body.stationId;
+14. 
+15.   if (!userId) {
+16.     return res.status(401).json({ error: 'Unauthorized' });
+17.   }
+18. 
+19.   if (!stationId) {
+20.     return res.status(400).json({ error: 'Station ID is missing' });
+21.   }
+22. 
+23. 
+24.   if (role === 'admin' || role === 'manager') {
+25.     return next();
+26.   }
+     
+     
+     Перевірка прав доступу відбувається безпосередньо в самому запиті (рядок 1-45)
+1. /**
+2.  * @swagger
+3.  * /stations/{id}:
+4.  *   patch:
+5.  *     summary: Update station details
+6.  *     tags: [Stations]
+7.  *     security:
+8.  *       - bearerAuth: []
+9.  *     parameters:
+10.  *       - in: path
+11.  *         name: id
+12.  *         required: true
+13.  *         schema:
+14.  *           type: string
+15.  *           format: uuid
+16.  *         description: The station ID
+17.  *     requestBody:
+18.  *       content:
+19.  *         application/json:
+20.  *           schema:
+21.  *             type: object
+22.  *             properties:
+23.  *               name:
+24.  *                 type: string
+25.  *               status:
+26.  *                 type: string
+27.  *                 enum: [active, offline, maintenance]
+28.  *               latitude:
+29.  *                 type: number
+30.  *               longitude:
+31.  *                 type: number
+32.  *     responses:
+33.  *       200:
+34.  *         description: Station updated successfully
+35.  *       404:
+36.  *         description: Station not found
+37.  *       403:
+38.  *         description: Forbidden - Requires Admin or Manager role
+39.  */
+40. router.patch(
+41.     '/:id',
+42.     authenticateToken,
+43.     authorizeRole(['admin', 'manager']),
+44.     controller.update
+45. );
+	
+3.2 Математичні розрахунки і автоматизація
+     Для контролю і автоматизованого регулювання показників води, було розроблено сервіс smartControlService. Цей сервіс реалізує автоматизовану систему керування технологічними процесами станції на основі математичного аналізу часових рядів, теорії автоматичного керування та прикладних моделей фізико-хімічних процесів. Кожне нове телеметричне значення обробляється не ізольовано, а як елемент послідовності вимірювань, що дозволяє системі працювати не лише з поточним станом, а й з динамікою процесу. Для цього формується історія значень, з якої обчислюється тренд - усереднена різниця між послідовними вимірами, що математично відповідає дискретній похідній і характеризує швидкість зміни параметра. (код на рядку 1-16)
+1.  const historyData = await db
+2.       .select({ value: telemetry.value, time: telemetry.measuredAt })
+3.       .from(telemetry)
+4.       .where(eq(telemetry.sensorId, sensorId))
+5.       .orderBy(desc(telemetry.measuredAt))
+6.       .limit(10);
+7.     
+8.     const historyValues = [...historyData.map(h => h.value).reverse(), currentValue];
+9. private calculateSlope(values: number[]): number {
+10.     if (values.length < 2) return 0;
+11.     let sumDiff = 0;
+12.     for (let i = 1; i < values.length; i++) {
+13.       sumDiff += (values[i] - values[i-1]); 
+14.     }
+15.     return sumDiff / (values.length - 1);
+16.   }
+
+     Для безперервних регульованих процесів використовується PID-регулювання - класичний метод теорії керування, який поєднує три математичні складові. Пропорційна складова прямо пропорційна похибці між заданим і фактичним значенням і визначає миттєву реакцію системи. Інтегральна складова є сумою похибок за попередні моменти часу і математично реалізує накопичення площі під кривою помилки, що дозволяє усунути тривале зміщення від цілі. Диференціальна складова базується на оцінці похідної сигналу, тобто тренді, і зменшує керуючий вплив при різких змінах, виконуючи роль демпфера. Кінцевий керуючий сигнал формується як зважена сума цих трьох величин, що забезпечує стійкість і плавність регулювання.(код на рядку 1-14)
+1. private calculatePID(target: number, current: number, history: number[]): number {
+2.     const error = target - current; 
+3.    
+4.     const P = this.Kp * error;
+5. 
+6.     const integralError = history.reduce((acc, val) => acc + (target - val), 0);
+7.     const I = this.Ki * integralError;
+8. 
+9.    
+10.     const slope = this.calculateSlope(history.slice(-3)); 
+11.     const D = this.Kd * (-slope); 
+12. 
+13.     return P + I + D;
+14.   }
+     Регулювання розчиненого кисню ґрунтується саме на цьому PID-підході з додатковою корекцією цільового значення залежно від температури води. З математичної точки зору це зміна уставки регулятора як функції зовнішнього параметра, що дозволяє врахувати зменшення розчинності кисню при підвищенні температури. При значних відхиленнях від критичних меж система переходить у насичений режим керування з максимальним сигналом, реалізуючи нелінійний захист (див. дод. В).
+     Контроль pH побудований з урахуванням логарифмічної природи цієї шкали. Відхилення pH від оптимуму перетворюється у нелінійний коефіцієнт підсилення через експоненційну функцію, що математично підсилює реакцію системи при великих відхиленнях і робить її м’якішою поблизу норми. Інтенсивність дозування також пов’язана з бажаним часом відновлення параметра, тобто швидкість зміни pH розраховується як відношення величини відхилення до заданого інтервалу часу. Додатково використовується корекція за трендом, яка зменшує керуючий сигнал, якщо система вже рухається у правильному напрямку, що запобігає коливанням (див. дод. В)..
+     Дезінфекція на основі ORP реалізована як часово-орієнтована модель дозування. Система обчислює дефіцит ORP відносно заданого значення і перетворює його у необхідну швидкість підвищення потенціалу за одиницю часу. Отримана швидкість масштабується калібрувальною константою насоса і додатково коригується коефіцієнтом ефективності, який є функцією pH і відображає хімічну залежність активності хлору. Таким чином керування є адаптивним і базується на математичній моделі реакції середовища (див. дод. В)..
+     Керування рівнем води використовує предиктивний підхід. На основі поточного рівня та його тренду система прогнозує майбутній стан, екстраполюючи значення вперед у часі. Це дозволяє вмикати наповнення або змінювати швидкість насосів ще до досягнення граничних значень. Потужність насосів розраховується за кусочно-лінійними залежностями від рівня, що забезпечує плавну зміну режимів, а додаткове введення невеликого випадкового шуму усуває резонансні та циклічні режими керування (див. дод. В)..
+     Фільтраційні процеси керуються логікою, що поєднує порогові значення та аналіз швидкості їх досягнення. Математично це означає, що рішення приймається не лише за значенням параметра, а й за знаком і величиною його похідної. Такий підхід дозволяє виконувати превентивні дії ще до настання граничних умов.
+
+3.3 Формування повідомлень
+     Розроблено сервіс AlertService, що реалізує централізовану логіку моніторингу параметрів і керування алертами на основі порогових значень. Для кожного нового вимірювання він визначає, до якої станції та параметра належить датчик, отримує задані для цього параметра межі та порівнює фактичне значення з допустимими рівнями. Якщо параметр знаходиться в нормі, сервіс автоматично закриває всі активні алерти, пов’язані з цим параметром, фіксуючи момент відновлення. У разі перевищення або заниження значень створюється попереджувальний або критичний алерт із чітким повідомленням та визначеною роллю отримувача. Сервіс захищений від дублювання повідомлень: одна й та сама проблема створює лише один активний алерт, який залишається відкритим до моменту нормалізації параметра (див. дод. В).
+
+
+4 ВИСНОВКИ
+     
+     У результаті виконання роботи було розроблено та реалізовано серверну частину IoT-системи з чітко структурованою архітектурою, що поєднує механізми адміністрування, інтелектуальної автоматизації та моніторингу технологічних процесів. Запроваджена рольова модель доступу забезпечує розмежування прав користувачів відповідно до їх функціональних обов’язків, підвищуючи безпеку системи та надійність виконання критичних операцій. Реалізовані механізми перевірки прав доступу безпосередньо на рівні HTTP-запитів гарантують контроль над усіма діями в системі.
+     Ключовою особливістю розробленої системи є використання математичних моделей та методів теорії автоматичного керування для реалізації автоматизації. Застосування аналізу часових рядів, PID-регулювання, нелінійних функцій та предиктивних розрахунків дозволило створити адаптивну систему, здатну враховувати динаміку процесів і фізико-хімічні властивості середовища. Це забезпечує стабільність роботи, зменшення ризику аварійних ситуацій та підвищення енергоефективності.
+     Окрему роль у системі відіграє сервіс формування повідомлень, який реалізує централізований та ідемпотентний механізм роботи з тривогами. Автоматичне створення, супровід і закриття алертів забезпечує своєчасне інформування відповідальних осіб і зменшує інформаційний шум.
+     У сукупності реалізовані рішення демонструють ефективний підхід до побудови сучасної IoT-платформи з високим рівнем автоматизації, масштабованості та надійності. Отримані результати підтверджують доцільність використання математичних моделей у серверній бізнес-логіці для керування складними технологічними процесами в реальному часі.
+
+
+
+
+
+
+ДОДАТОК А
+
+Відеозапис
+
+Відеозапис презентації результатів лабораторної роботи: 
+https://youtu.be/WFt8D4ZV_5E
+
+Хронологічний опис відеозапису:
+
+00:00 - представлення та завдання на лабораторну работу.
+00:14 - клас SmartControlService - основна бізнес логіка та математика
+03:09 - перевірка роботи системи
+05:56 - адмін панель. статистика
+07:13 - повний backup бази даних
+07:49 - адмін панель. перегляд усіх станцій, юзерів. Перевірка роботи під роллю "Технік"
+
+
+ДОДАТОК Б
+
+Графічні матеріали
+
+
+Рисунок 1 — Діаграма активності прийому показника зі станції на сервер
+
+Рисунок 2 — Діаграма створення бекапу адміном
+
+
+Рисунок 3 — Діаграма взаємодії призначення користувача на станцію
+
+
+Рисунок 4 — Діаграма взаємодії додавання нового сенсора на станцію
+
+Рисунок 5 — Діаграма взаємодії отримання звіту по ефективності контролерів
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ДОДАТОК В
+
+Логіка сервісу SmartControlService
+
+1. import { db } from '../config/db';
+2. import { sensors, controllers, stationThresholds, parameters, controllerLogs, alerts, telemetry } from '../db/schema';
+3. import { eq, and, desc, inArray } from 'drizzle-orm';
+4. 
+5. export class SmartControlService {
+6. 
+7. 
+8.   private readonly TARGET_RECOVERY_TIME_MINUTES = 15;
+9. 
+10.   // Коефіцієнти PID
+11.   private Kp = 20.0; // Пропорційний (Сила реакції на миттєву помилку)
+12.   private Ki = 0.5;  // Інтегральний (Накопичення сили, якщо помилка не зникає)
+13.   private Kd = 15.0; // Диференціальний (Гальмування, щоб не перелетіти ціль)
+14. 
+15.   /**
+16.    * Головний метод
+17.    */
+18.   async processTelemetry(sensorId: string, currentValue: number) {
+19.     const sensorInfo = await this.getSensorContext(sensorId);
+20.     if (!sensorInfo) return;
+21. 
+22.     const { stationId, parameterCode, parameterId } = sensorInfo;
+23. 
+24.     if (!parameterCode) return;
+25. 
+26.     
+27.     const historyData = await db
+28.       .select({ value: telemetry.value, time: telemetry.measuredAt })
+29.       .from(telemetry)
+30.       .where(eq(telemetry.sensorId, sensorId))
+31.       .orderBy(desc(telemetry.measuredAt))
+32.       .limit(10);
+33.     
+34.     const historyValues = [...historyData.map(h => h.value).reverse(), currentValue];
+35. 
+36.     const waterTemp = await this.getStationParameter(stationId, 'temperature') || 20.0;
+37.     const rules = await this.getThresholds(stationId, parameterId);
+38.     if (!rules) return;
+39. 
+40.     switch (parameterCode) {
+41.       case 'dissolved_oxygen':
+42.         await this.controlAeratorPID(stationId, currentValue, historyValues, waterTemp, rules);
+43.         break;
+44.       
+45.       case 'ph_level':
+46.         await this.controlPhAdvanced(stationId, currentValue, historyValues, waterTemp, rules);
+47.         break;
+48. 
+49.       case 'orp':
+50.         const currentPH = await this.getStationParameter(stationId, 'ph_level') || 7.0;
+51.         await this.controlDisinfectionTimeBased(stationId, currentValue, historyValues, currentPH, rules);
+52.         break;
+53. 
+54.       case 'pressure':
+55.       case 'turbidity':
+56.         const trend = this.calculateSlope(historyValues.slice(-3)); 
+57.         await this.controlFilterLogic(stationId, currentValue, trend, rules, parameterCode);
+58.         break;
+59. 
+60.       case 'water_level':
+61.         const levelTrend = this.calculateSlope(historyValues.slice(-5));
+62.         await this.controlLevelPredictive(stationId, currentValue, levelTrend, rules);
+63.         break;
+64.     }
+65. 
+66.     const shortTrend = this.calculateSlope(historyValues.slice(-3));
+67.   }
+68. 
+69.   // ------------------------------------------------------------------
+70.   // СКЛАДНА МАТЕМАТИКА (PID + TIME-BASED)
+71.   // ------------------------------------------------------------------
+72. 
+73.   /**
+74.    * PID Controller Formula:
+75.    * u(t) = Kp*e(t) + Ki*∫e(t) + Kd*de(t)/dt
+76.    */
+77.   private calculatePID(target: number, current: number, history: number[]): number {
+78.     const error = target - current; 
+79.    
+80.     const P = this.Kp * error;
+81. 
+82.     const integralError = history.reduce((acc, val) => acc + (target - val), 0);
+83.     const I = this.Ki * integralError;
+84. 
+85.    
+86.     const slope = this.calculateSlope(history.slice(-3)); 
+87.     const D = this.Kd * (-slope); 
+88. 
+89.     return P + I + D;
+90.   }
+91. 
+92.   /**
+93.    * Аератор з PID регулюванням та термо-компенсацією
+94.    */
+95.   private async controlAeratorPID(stationId: string, currentDO: number, history: number[], temp: number, rules: any) {
+96.     const aerator = await this.findController(stationId, 'aerator');
+97.     if (!aerator) return;
+98. 
+99.     let setPoint = (rules.minWarning || 5.0) + 1.0; 
+100.  
+101.     if (temp > 25) setPoint += 0.5;
+102. 
+103.     if (currentDO > setPoint + 1.0) {
+104.       await this.sendCommand(aerator.id, 0, 'Auto: DO Optimal');
+105.       return;
+106.     }
+107. 
+108.     let power = this.calculatePID(setPoint, currentDO, history);
+109. 
+110.     if (currentDO < (rules.minCritical || 3.0)) power = 100;
+111. 
+112.     await this.sendCommand(aerator.id, power, `Auto PID: Target=${setPoint.toFixed(1)}, Err=${(setPoint - currentDO).toFixed(2)}`);
+113.   }
+114. 
+115.   /**
+116.    * pH Контроль: Враховує логарифмічну природу pH та час реакції
+117.    */
+118.   private async controlPhAdvanced(stationId: string, currentPH: number, history: number[], temp: number, rules: any) {
+119.     const acidPump = await this.findController(stationId, 'dispenser_acid');
+120.     const alkaliPump = await this.findController(stationId, 'dispenser_alkali');
+121.     
+122.     const maxLimit = rules.maxWarning || 8.5;
+123.     const minLimit = rules.minWarning || 6.5;
+124.     const optimalPH = ((maxLimit+minLimit)/2)||7.2; 
+125.  
+126.     const diff = Math.abs(currentPH - optimalPH);
+127.     const logErrorWeight = Math.pow(10, diff) * 0.5; 
+128.    
+129.     const requiredRate = (diff / this.TARGET_RECOVERY_TIME_MINUTES); 
+130. 
+131.     let power = (requiredRate * 1000) + (logErrorWeight * 5); 
+132. 
+133.    
+134.     const slope = this.calculateSlope(history.slice(-3));
+135.     power -= (Math.abs(slope) * 500); 
+136. 
+137.     power = this.clamp(power, 0, 100);
+138. 
+139.     if (currentPH > maxLimit) {
+140.       if (acidPump) {
+141.         await this.sendCommand(acidPump.id, power, `Auto pH-: LogFactor=${logErrorWeight.toFixed(1)}`);
+142.       }
+143.       if (alkaliPump) {
+144.         await this.sendCommand(alkaliPump.id, 0, 'Standby (pH High)');
+145.       }
+146.     } 
+147.     else if (currentPH < minLimit) {
+148.       if (alkaliPump) {
+149.         await this.sendCommand(alkaliPump.id, power, `Auto pH+: LogFactor=${logErrorWeight.toFixed(1)}`);
+150.       }
+151.       if (acidPump) {
+152.         await this.sendCommand(acidPump.id, 0, 'Standby (pH Low)');
+153.       }
+154.     } 
+155.     else {
+156.       if (acidPump) await this.sendCommand(acidPump.id, 0, 'pH Stable');
+157.       if (alkaliPump) await this.sendCommand(alkaliPump.id, 0, 'pH Stable');
+158.     }
+159.   }
+160. 
+161.   /**
+162.    * Дезінфекція (Time-Based Injection):
+163.    * Розраховує необхідну дозу на об'єм резервуара.
+164.    */
+165.   private async controlDisinfectionTimeBased(stationId: string, currentORP: number, history: number[], ph: number, rules: any) {
+166.     const chlorinePump = await this.findController(stationId, 'dispenser_chlorine');
+167.     if (!chlorinePump) return;
+168. 
+169.     const targetORP = 700; 
+170.     if (currentORP >= targetORP) {
+171.       await this.sendCommand(chlorinePump.id, 0, 'ORP Optimal');
+172.       return;
+173.     }
+174. 
+175.     const deficit = targetORP - currentORP;
+176. 
+177.     let efficiencyFactor = 1.0;
+178.     if (ph > 7.5) efficiencyFactor = 0.5;
+179.     if (ph > 8.0) efficiencyFactor = 0.3;
+180. 
+181.     
+182.     const requiredSpeedPerMin = deficit / this.TARGET_RECOVERY_TIME_MINUTES;
+183.    
+184.     const pumpCalibrationConstant = 10.0; 
+185.     
+186.     let power = (requiredSpeedPerMin / pumpCalibrationConstant) * 100;
+187.    
+188.     power = power / efficiencyFactor;
+189. 
+190.     await this.sendCommand(chlorinePump.id, power, `Auto ORP: Deficit=${deficit}, pH-Eff=${efficiencyFactor}`);
+191.   }
+192. 
+193.   /**
+194.    * Рівень води: Предиктивне наповнення (Predictive Filling)
+195.    * Якщо рівень падає швидко, ми вмикаємо насос РАНІШЕ, ніж досягнемо мінімуму.
+196.    */
+197.   private async controlLevelPredictive(stationId: string, currentLevel: number, trend: number, rules: any) {
+198.     const pump = await this.findController(stationId, 'pump');
+199.     const valve = await this.findController(stationId, 'valve');
+200.   
+201.     const minWarning = rules.minWarning || 20;  
+202.     const maxWarning = rules.maxWarning || 90;  
+203.     const minCritical = rules.minCritical || 10;
+204. 
+205.     const predictedLevel = currentLevel + (trend * 5); 
+206. 
+207.  
+208.     if (valve) {
+209.       if (predictedLevel < minWarning) {
+210.         const fillPower = trend < -1.0 ? 100 : 60;
+211.         await this.sendCommand(valve.id, fillPower, `Auto: Filling (Lvl ${currentLevel.toFixed(1)}%)`);
+212.       } 
+213.       else if (currentLevel > maxWarning) {
+214.         await this.sendCommand(valve.id, 0, 'Auto: Tank Full - Valve Closed');
+215.       }
+216.  
+217.     }
+218. 
+219. 
+220.     if (pump) {
+221.       if (currentLevel < minCritical) {
+222.         await this.sendCommand(pump.id, 0, 'Auto: DRY RUN PROTECTION (Critical)');
+223.         return;
+224.       }
+225. 
+226.       let targetPower = 0;
+227. 
+228.       if (currentLevel > maxWarning) {
+229.         targetPower = 100;
+230.       } 
+231.       else if (currentLevel > 50) {
+232.       
+233.         targetPower = 80 + (trend * 2); 
+234.       } 
+235.       else if (currentLevel >= minWarning) {
+236.     
+237.         const ratio = (currentLevel - minWarning) / (50 - minWarning);
+238.         targetPower = 40 + (ratio * 30);
+239. 
+240.         if (trend < -1.0) targetPower -= 10;
+241.       } 
+242.       else {
+243.    
+244.         targetPower = 30;
+245.       }
+246. 
+247.   
+248.       const noise = (Math.random() * 4) - 2; 
+249.       targetPower += noise;
+250. 
+251.       targetPower = this.clamp(targetPower, 0, 100);
+252. 
+253.       const statusMsg = `Auto: VFD Mode | Lvl: ${currentLevel.toFixed(1)}% | Trnd: ${trend.toFixed(2)}`;
+254.       await this.sendCommand(pump.id, targetPower, statusMsg);
+255.     }
+256.   }
+257. 
+258.   /**
+259.    * Фільтр (Logic remains mostly boolean but with trend check)
+260.    */
+261.   private async controlFilterLogic(stationId: string, value: number, trend: number, rules: any, type: string) {
+262.     const filter = await this.findController(stationId, 'filter');
+263.     if (!filter) return;
+264.     const limit = rules.maxWarning || 5.0;
+265. 
+266.     if (value > limit) {
+267.       await this.sendCommand(filter.id, 100, `Auto: ${type} Limit`);
+268.     } else if (value > limit * 0.9 && trend > 0.5) {
+269.       // Якщо ми на 90% від ліміту і стрімко ростемо -> превентивна промивка
+270.       await this.sendCommand(filter.id, 100, `Auto: Predictive Wash (${type} rising fast)`);
+271.     } else {
+272.       await this.sendCommand(filter.id, 0, 'Standby');
+273.     }
+274.   }
+275. 
+276.   // ------------------------------------------------------------------
+277.   // HELPER METHODS
+278.   // ------------------------------------------------------------------
+279. 
+280.   /**
+281.    * Розрахунок нахилу (Slope/Trend) методом найменших квадратів або простою дельтою.
+282.    * Тут проста усереднена дельта між точками.
+283.    * Returns: зміна значення за один крок часу.
+284.    */
+285.   private calculateSlope(values: number[]): number {
+286.     if (values.length < 2) return 0;
+287.     let sumDiff = 0;
+288.     for (let i = 1; i < values.length; i++) {
+289.       sumDiff += (values[i] - values[i-1]); 
+290.     }
+291.     return sumDiff / (values.length - 1);
+292.   }
+293. 
+294.   private clamp(num: number, min: number, max: number) {
+295.     return Math.max(min, Math.min(num, max));
+296.   }
+297. 
+298.   // --- DB HELPERS ---
+299.   private async getStationParameter(stationId: string, paramCode: string): Promise<number | null> {
+300.     const res = await db
+301.       .select({ value: telemetry.value })
+302.       .from(telemetry)
+303.       .innerJoin(sensors, eq(telemetry.sensorId, sensors.id))
+304.       .innerJoin(parameters, eq(sensors.parameterId, parameters.id))
+305.       .where(and(eq(sensors.stationId, stationId), eq(parameters.code, paramCode)))
+306.       .orderBy(desc(telemetry.measuredAt))
+307.       .limit(1);
+308.     return res.length ? res[0].value : null;
+309.   }
+310. 
+311.   private async getSensorContext(sensorId: string) {
+312.     const res = await db
+313.       .select({
+314.         stationId: sensors.stationId,
+315.         parameterId: sensors.parameterId,
+316.         parameterCode: parameters.code,
+317.       })
+318.       .from(sensors)
+319.       .leftJoin(parameters, eq(sensors.parameterId, parameters.id))
+320.       .where(eq(sensors.id, sensorId))
+321.       .limit(1);
+322.     return res[0];
+323.   }
+324. 
+325.   private async getThresholds(stationId: string, parameterId: string) {
+326.     const res = await db
+327.       .select()
+328.       .from(stationThresholds)
+329.       .where(and(eq(stationThresholds.stationId, stationId), eq(stationThresholds.parameterId, parameterId)))
+330.       .limit(1);
+331.     return res[0];
+332.   }
+333. 
+334.   private async findController(stationId: string, type: any) {
+335.     const res = await db
+336.       .select()
+337.       .from(controllers)
+338.       .where(and(eq(controllers.stationId, stationId), eq(controllers.type, type)))
+339.       .limit(1);
+340.     return res[0];
+341.   }
+342. 
+343.   private async sendCommand(controllerId: string, percentage: number, msg: string) {
+344.     const finalPct = this.clamp(percentage, 0, 100).toFixed(2);
+345.     const isActive = parseFloat(finalPct) > 0;
+346. 
+347.     await db.update(controllers).set({ isActive }).where(eq(controllers.id, controllerId));
+348.     await db.insert(controllerLogs).values({
+349.       controllerId,
+350.       activationPercentage: finalPct,
+351.       statusMessage: msg,
+352.       timestamp: new Date()
+353.     });
+354.   }
+355. }
+
+
+Сервіс AlertService
+1. import { db } from '../config/db';
+2. import { alerts, stationThresholds, sensors, parameters } from '../db/schema';
+3. import { eq, and, like, isNull } from 'drizzle-orm';
+4. 
+5. export class AlertService {
+6. 
+7.   /**
+8.    * Головний метод: Перевірка значення, створення АБО закриття алерту
+9.    */
+10.   async checkAndCreateAlert(sensorId: string, value: number) {
+11.   
+12.     const sensorContext = await db
+13.       .select({
+14.         stationId: sensors.stationId,
+15.         parameterId: sensors.parameterId,
+16.         paramName: parameters.name,
+17.         paramUnit: parameters.unit
+18.       })
+19.       .from(sensors)
+20.       .innerJoin(parameters, eq(sensors.parameterId, parameters.id))
+21.       .where(eq(sensors.id, sensorId))
+22.       .limit(1);
+23. 
+24.     if (!sensorContext.length) return;
+25.     const { stationId, parameterId, paramName, paramUnit } = sensorContext[0];
+26. 
+27.     const rulesData = await db
+28.       .select()
+29.       .from(stationThresholds)
+30.       .where(
+31.         and(
+32.           eq(stationThresholds.stationId, stationId),
+33.           eq(stationThresholds.parameterId, parameterId)
+34.         )
+35.       )
+36.       .limit(1);
+37. 
+38.     if (!rulesData.length) return;
+39.     const rules = rulesData[0];
+40. 
+41.     const isLow = rules.minWarning !== null && value < rules.minWarning;
+42.     const isHigh = rules.maxWarning !== null && value > rules.maxWarning;
+43.     const isNormal = !isLow && !isHigh;
+44. 
+45.     if (isNormal) {
+46.       await this.resolveActiveAlerts(stationId, paramName);
+47.       return; 
+48.     }
+49. 
+50.     let type: 'critical' | 'warning' | null = null;
+51.     let message = '';
+52.     let role: 'admin' | 'technician' = 'technician';
+53. 
+54.     if (rules.minCritical !== null && value <= rules.minCritical) {
+55.       type = 'critical';
+56.       role = 'admin';
+57.       message = `CRITICAL LOW: ${paramName} is ${value} ${paramUnit} (Limit: ${rules.minCritical})`;
+58.     } 
+59.     else if (rules.maxCritical !== null && value >= rules.maxCritical) {
+60.       type = 'critical';
+61.       role = 'admin';
+62.       message = `CRITICAL HIGH: ${paramName} is ${value} ${paramUnit} (Limit: ${rules.maxCritical})`;
+63.     }
+64.     else if (isLow) {
+65.       type = 'warning';
+66.       message = `Warning Low: ${paramName} is ${value} ${paramUnit} (Limit: ${rules.minWarning})`;
+67.     }
+68.     else if (isHigh) {
+69.       type = 'warning';
+70.       message = `Warning High: ${paramName} is ${value} ${paramUnit} (Limit: ${rules.maxWarning})`;
+71.     }
+72. 
+73.     if (type && message) {
+74.       await this.createAlertIfNotExists(stationId, type, role, message);
+75.     }
+76.   }
+77. 
+78. 
+79.   private async resolveActiveAlerts(stationId: string, paramName: string) {
+80.     
+81.     const alertsToResolve = await db
+82.       .select()
+83.       .from(alerts)
+84.       .where(
+85.         and(
+86.           eq(alerts.stationId, stationId),
+87.           eq(alerts.isResolved, false),
+88.           like(alerts.message, `%${paramName}%`) 
+89.         )
+90.       );
+91. 
+92.     if (alertsToResolve.length > 0) {
+93.       console.log(` Auto-resolving ${alertsToResolve.length} alerts for ${paramName}`);
+94.       
+95.       await db
+96.         .update(alerts)
+97.         .set({
+98.           isResolved: true,
+99.           resolvedAt: new Date(),
+100.         })
+101.         .where(
+102.           and(
+103.             eq(alerts.stationId, stationId),
+104.             eq(alerts.isResolved, false),
+105.             like(alerts.message, `%${paramName}%`)
+106.           )
+107.         );
+108.     }
+109.   }
+110. 
+111.   /**
+112.    * Створення алерту з захистом від дублікатів
+113.    */
+114.   private async createAlertIfNotExists(
+115.     stationId: string, 
+116.     type: 'critical' | 'warning', 
+117.     targetRole: 'admin' | 'technician', 
+118.     message: string
+119.   ) {
+120.     const existing = await db
+121.       .select()
+122.       .from(alerts)
+123.       .where(
+124.         and(
+125.           eq(alerts.stationId, stationId),
+126.           eq(alerts.isResolved, false),
+127.           eq(alerts.message, message)
+128.         )
+129.       )
+130.       .limit(1);
+131. 
+132.     if (existing.length === 0) {
+133.       console.log(` New Alert: [${type.toUpperCase()}] ${message}`);
+134.       
+135.       await db.insert(alerts).values({
+136.         stationId,
+137.         type,
+138.         targetRole,
+139.         message,
+140.         isResolved: false,
+141.         createdAt: new Date()
+142.       });
+143.     }
+144.   }
+145. }
+
+
+
+
+ДОДАТОК Г
+     Специфікація:
+
+Адміністратор
+POST/api/auth/registerРеєстрація нових адміністраторів/менеджерівGET/api/backups/fullЗавантажити повний SQL дамп базиGET/api/backups/telemetryЗавантажити архів телеметріїPOST/api/backups/restoreВідновити базу з файлу (Reset DB)GET/api/usersОтримати список усіх користувачівDELETE/api/users/:idВидалити користувачаPOST/api/parametersДодати новий тип параметра (напр. "pH")DELETE/api/parameters/:idВидалити параметр з довідникаDELETE/api/stations/:idВидалити станцію повністюDELETE/api/sensors/:idВидалити сенсорDELETE/api/actuators/:idВидалити актуатор
+Менеджер		
+GET/api/stationsБачити всі станції системиPOST/api/stationsСтворити нову станціюPATCH/api/stations/:idРедагувати станцію (ім'я, координати)POST/api/stations/assignПризначити юзера на станціюDELETE/api/stations/assignЗняти юзера зі станціїPATCH/api/sensors/:idРедагувати сенсор (напр. вимкнути isActive)POST/api/actuatorsДодати новий контролер/актуаторPATCH/api/actuators/:idРедагувати актуаторPOST/api/thresholdsВстановити пороги тривогPATCH/api/thresholds/:idЗмінити порогиDELETE/api/thresholds/:idВидалити поріг
+Технік 
+POST/api/sensorsРеєстрація нового сенсора (монтаж)GET/api/sensors/station/:idПеревірити список сенсорів на станції
+Аналітик
+GET/api/statistics/station/:id/sensorsАгрегація (Min/Max/Avg) сенсорівGET/api/statistics/station/:id/alertsСтатистика інцидентів та тривогGET/api/statistics/station/:id/actuatorsЕфективність роботи обладнання
+Гість
+GET/api/users/profileМій профільGET/api/stations/myМої доступні станціїGET/api/stations/:idДеталі станції (якщо призначено)GET/api/telemetry/station/:id/latestLive Dashboard (останні показники)GET/api/telemetry/sensor/:idГрафік/Історія по конкретному сенсоруGET/api/actuators/station/:id/latestПоточний статус насосів/вентилівGET/api/actuators/:id/historyІсторія роботи механізмівGET/api/parametersДовідник параметрів (для UI)GET/api/thresholds/station/:idПерегляд лімітів тривог (Read-only)
+
+
+2
+
+
+
+
+
+
+
+
+
+
