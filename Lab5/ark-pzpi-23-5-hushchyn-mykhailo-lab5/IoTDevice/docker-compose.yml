@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # ========================
+  # MQTT Broker
+  # ========================
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mqtt_broker
+    restart: always
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - iot-network
+
+
+  mqtt-bridge:
+    build: ./bridge
+    container_name: ts_mqtt_bridge
+    restart: always
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_BROKER: mqtt://mosquitto:1883
+      API_URL: http://iot_backend:3000/api/v1
+      BRIDGE_EMAIL: user@example.com
+      BRIDGE_PASSWORD: string
+    networks:
+      - iot-network
+
+
+  python-emulator:
+    build: ./simulator
+    container_name: python_iot
+    restart: always
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      API_URL: http://iot_backend:3000/api/v1
+      IOT_USER: user@example.com
+      IOT_PASS: string
+      STATION_ID: 98f6a2b1-5c3d-4e8f-9a1b-7c6d5e4f3a2b
+    networks:
+      - iot-network
+
+networks:
+  iot-network:
+    name: iot-shared-network
+    external: true

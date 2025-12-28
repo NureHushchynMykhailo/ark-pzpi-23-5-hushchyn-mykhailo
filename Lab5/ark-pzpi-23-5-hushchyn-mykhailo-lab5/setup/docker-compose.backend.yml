@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: iot_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - iot-network
+
+  backend-migrate:
+    image: qwertymvh/iot_backend:latest
+    container_name: iot_backend_migrate
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: supersecretkey
+    command: sh -c "npm run migrate"
+    restart: "no"
+    networks:
+      - iot-network
+
+  backend-api:
+    image: qwertymvh/iot_backend:latest
+    container_name: iot_backend
+    restart: always
+    depends_on:
+      - postgres
+      - backend-migrate
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: 3000
+      JWT_SECRET: supersecretkey
+    ports:
+      - "3000:3000"
+    networks:
+      - iot-network
+
+networks:
+  iot-network:
+    name: iot-shared-network
+    external: true
+
+volumes:
+  postgres_data:
